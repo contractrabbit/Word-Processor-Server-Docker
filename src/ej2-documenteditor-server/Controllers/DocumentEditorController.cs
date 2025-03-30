@@ -14,6 +14,7 @@ using Syncfusion.EJ2.SpellChecker;
 
 namespace EJ2DocumentEditorServer.Controllers
 {
+
     [Route("api/[controller]")]
     public class DocumentEditorController : Controller
     {
@@ -23,6 +24,76 @@ namespace EJ2DocumentEditorServer.Controllers
         {
             _hostingEnvironment = hostingEnvironment;
             path = Startup.path;
+
+            // Use reflection to set private OptimizeSfdt property
+            typeof(WordDocument)
+                .GetProperty("OptimizeSfdt", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                ?.SetValue(null, false);
+        }
+
+        [AcceptVerbs("Post")]
+        [HttpPost]
+        [EnableCors("AllowAllOrigins")]
+        [Route("ExportSFDT")]
+        public FileStreamResult ExportSFDT([FromBody] SaveParameter data)
+        {
+            string name = data.FileName;
+            string ext = "."+name.Split(".")[1];
+            if (string.IsNullOrEmpty(name))
+            {
+                name = "Document1.doc";
+            }
+            WDocument document = WordDocument.Save(data.Content);
+            return SaveDocument(document, ext, name);
+        }
+
+        public class SaveParameter
+        {
+            public string Content { get; set; }
+            public string FileName { get; set; }
+        }
+
+        private FileStreamResult SaveDocument(WDocument document, string format, string fileName)
+        {
+            Stream stream = new MemoryStream();
+            string contentType = "";
+            if (format == ".pdf")
+            {
+                contentType = "application/pdf";
+            }
+            else
+            {
+                WFormatType type = GetWFormatType(format);
+                switch (type)
+                {
+                    case WFormatType.Rtf:
+                        contentType = "application/rtf";
+                        break;
+                    case WFormatType.WordML:
+                        contentType = "application/xml";
+                        break;
+                    case WFormatType.Html:
+                        contentType = "application/html";
+                        break;
+                    case WFormatType.Dotx:
+                        contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.template";
+                        break;
+                    case WFormatType.Doc:
+                    case WFormatType.Docx:
+                        contentType = "application/msword";
+                        break;
+                    case WFormatType.Dot:
+                        contentType = "application/msword";
+                        break;
+                }
+                document.Save(stream, type);
+            }
+            document.Close();
+            stream.Position = 0;
+            return new FileStreamResult(stream, contentType)
+            {
+                FileDownloadName = fileName
+            };
         }
 
         [AcceptVerbs("Post")]
@@ -99,7 +170,7 @@ namespace EJ2DocumentEditorServer.Controllers
                 return "{\"SpellCollection\":[],\"HasSpellingError\":false,\"Suggestions\":null}";
             }
         }
-		// GET api/values
+        // GET api/values
         [HttpGet]
         public IEnumerable<string> Get()
         {
@@ -144,7 +215,7 @@ namespace EJ2DocumentEditorServer.Controllers
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("SystemClipboard")]
-        public string SystemClipboard([FromBody]CustomParameter param)
+        public string SystemClipboard([FromBody] CustomParameter param)
         {
             if (param.content != null && param.content != "")
             {
@@ -181,7 +252,7 @@ namespace EJ2DocumentEditorServer.Controllers
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("RestrictEditing")]
-        public string[] RestrictEditing([FromBody]CustomRestrictParameter param)
+        public string[] RestrictEditing([FromBody] CustomRestrictParameter param)
         {
             if (param.passwordBase64 == "" && param.passwordBase64 == null)
                 return null;
@@ -208,7 +279,7 @@ namespace EJ2DocumentEditorServer.Controllers
         [Route("LoadDocument")]
         public string LoadDocument([FromForm] UploadDocument uploadDocument)
         {
-            string documentPath= Path.Combine(path, uploadDocument.DocumentName);
+            string documentPath = Path.Combine(path, uploadDocument.DocumentName);
             Stream stream = null;
             if (System.IO.File.Exists(documentPath))
             {
