@@ -35,6 +35,12 @@ namespace EJ2DocumentEditorServer.Controllers
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("ExportSFDT")]
+        // Large legitimate SFDT payloads (tens of MB) exceed Kestrel's default
+        // ~28.6 MiB body limit once decompressed, since
+        // RequestDecompressionMiddleware enforces this limit against the
+        // decompressed stream. Bounded, not unlimited: still a hard cap that
+        // contains gzip/br decompression bombs on this endpoint.
+        [RequestSizeLimit(256_000_000)]
         public FileStreamResult ExportSFDT([FromBody] SaveParameter data)
         {
             string name = data.FileName;
@@ -100,6 +106,7 @@ namespace EJ2DocumentEditorServer.Controllers
         [HttpPost]
         [EnableCors("AllowAllOrigins")]
         [Route("Import")]
+        [RequestSizeLimit(256_000_000)]
         public string Import(IFormCollection data)
         {
             if (data.Files.Count == 0)

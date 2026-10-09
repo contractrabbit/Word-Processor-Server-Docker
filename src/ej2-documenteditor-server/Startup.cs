@@ -76,6 +76,20 @@ namespace EJ2DocumentEditorServer
             });
             services.Configure<GzipCompressionProviderOptions>(options => options.Level = System.IO.Compression.CompressionLevel.Optimal);
             services.AddResponseCompression();
+
+            // Accepts gzip/br/deflate request bodies (all three are registered by
+            // default). Note: RequestDecompressionMiddleware enforces the request
+            // size limit (the [RequestSizeLimit] attribute, falling back to
+            // Kestrel's MaxRequestBodySize) against the DECOMPRESSED stream, not
+            // the compressed wire bytes (verified against
+            // RequestDecompressionMiddleware.InvokeCore in the ASP.NET Core 9
+            // source, which wraps the decompression stream itself in a
+            // SizeLimitedStream using that limit). That bounds decompression
+            // bombs by default (Kestrel's ~28.6 MiB default caps decompressed
+            // output on any endpoint without its own [RequestSizeLimit]); the
+            // Import/ExportSFDT actions raise that cap explicitly in
+            // DocumentEditorController to admit large legitimate SFDT payloads.
+            services.AddRequestDecompression();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -85,6 +99,9 @@ namespace EJ2DocumentEditorServer
             if (license_key!=null && license_key!=string.Empty)
                 Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(license_key);
             app.UseDeveloperExceptionPage();
+            // As early in the pipeline as possible, before routing/controllers
+            // consume the request body.
+            app.UseRequestDecompression();
             app.UseCors("AllowAllOrigins");
             if (env.IsDevelopment())
             {
